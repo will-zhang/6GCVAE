@@ -1,8 +1,9 @@
 import numpy as np
 from keras.models import Model
 from keras.layers import *
-from keras import backend as K
+#from keras import backend as K
 #from keras.engine.topology import Layer
+import tensorflow as tf
 from tensorflow.keras.layers import Layer
 from keras.callbacks import Callback
 from sklearn.model_selection import train_test_split
@@ -80,7 +81,8 @@ def run_model():
             print(self.kernel)
 
         def call(self, x):
-            _ = K.conv1d(x, self.kernel, padding='same')
+            _ = tf.nn.conv1d(x, self.kernel, stride=1, padding='SAME')
+            #_ = K.conv1d(x, self.kernel, padding='same')
             print("input", x)
             print("conv", _)
             print("output_dim", self.output_dim)
