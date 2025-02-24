@@ -1,7 +1,7 @@
 import numpy as np
 from keras.models import Model
 from keras.layers import *
-#from keras import backend as K
+from keras import backend as K
 #from keras.engine.topology import Layer
 import tensorflow as tf
 from tensorflow.keras.layers import Layer
