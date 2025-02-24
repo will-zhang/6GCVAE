@@ -2,7 +2,8 @@ import numpy as np
 from keras.models import Model
 from keras.layers import *
 from keras import backend as K
-from keras.engine.topology import Layer
+#from keras.engine.topology import Layer
+from tensorflow.keras.layers import Layer
 from keras.callbacks import Callback
 from sklearn.model_selection import train_test_split
 
