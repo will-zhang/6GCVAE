@@ -65,9 +65,9 @@ def run_model():
     # x_train = x_train.astype('float32') / 15.
     # x_test = x_test.astype('float32') / 15.
     # 显式地将 x_train 和 x_test 转换为 int32 类型
-    x_train = x_train.astype('int32')
-    x_test = x_test.astype('int32')
-    print(f"Data type of x_train: {x_train.dtype}") # Debug print: Check x_train dtype
+    # x_train = x_train.astype('int32')
+    # x_test = x_test.astype('int32')
+    # print(f"Data type of x_train: {x_train.dtype}") # Debug print: Check x_train dtype
 
     class GCNN(Layer):
         def __init__(self, output_dim=None, residual=False, **kwargs):
@@ -198,7 +198,7 @@ def run_model():
             callbacks=[evaluator]
             )
 
-    vae.save_weights('models/gcnn_vae.model')
+    vae.save_weights('models/gcnn_vae.model.weights.h5')
 
     for i in range(20):
         r = gen()
