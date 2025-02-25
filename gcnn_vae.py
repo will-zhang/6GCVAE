@@ -1,13 +1,13 @@
 import numpy as np
-from keras.models import Model
-from keras.layers import *
-#from keras import backend as K
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import *
 from tensorflow.keras import backend as K
-#from keras.engine.topology import Layer
-import tensorflow as tf
-from tensorflow.keras.layers import Layer
-from keras.callbacks import Callback
+#from keras.engine.topology import Layer # replaced
+from tensorflow.keras.layers import Layer # corrected import
+from tensorflow.keras.layers import Conv1D # corrected import
+from tensorflow.keras.callbacks import Callback
 from sklearn.model_selection import train_test_split
+import tensorflow as tf  # Ensure tensorflow is imported
 
 dataset_path = 'data/processed_data/data.txt'
 generated_path = 'data/generated_data/6gcvae_generation.txt'
@@ -64,30 +64,37 @@ def run_model():
     x_test = np.array(x_test)
     # x_train = x_train.astype('float32') / 15.
     # x_test = x_test.astype('float32') / 15.
+    # 显式地将 x_train 和 x_test 转换为 int32 类型
+    x_train = x_train.astype('int32')
+    x_test = x_test.astype('int32')
+    print(f"Data type of x_train: {x_train.dtype}") # Debug print: Check x_train dtype
 
     class GCNN(Layer):
         def __init__(self, output_dim=None, residual=False, **kwargs):
             super(GCNN, self).__init__(**kwargs)
             self.output_dim = output_dim
             self.residual = residual
+            self.conv1d = None # Initialize conv1d layer
 
         def build(self, input_shape):
             if self.output_dim == None:
                 self.output_dim = input_shape[-1]
-            self.kernel = self.add_weight(name='gcnn_kernel',
-                                          shape=(3, input_shape[-1],
-                                                 self.output_dim * 2),
-                                          initializer='glorot_uniform',
-                                          trainable=True)
-            print(self.kernel)
+            # Use Conv1D Layer
+            self.conv1d = Conv1D(
+                filters=self.output_dim * 2,
+                kernel_size=3,
+                padding='same',
+                kernel_initializer='glorot_uniform',
+                name='gcnn_conv1d'
+            )
+            self.built = True
 
         def call(self, x):
-            _ = tf.nn.conv1d(x, self.kernel, stride=1, padding='SAME')
-            #_ = K.conv1d(x, self.kernel, padding='same')
+            _ = self.conv1d(x)
             print("input", x)
             print("conv", _)
             print("output_dim", self.output_dim)
-            _ = _[:, :, :self.output_dim] * tf.sigmoid(_[:, :, self.output_dim:])
+            _ = _[:, :, :self.output_dim] * tf.nn.sigmoid(_[:, :, self.output_dim:]) # Use tf.nn.sigmoid
             print("output", _)
             if self.residual:
                 return _ + x
@@ -95,20 +102,23 @@ def run_model():
                 return _
 
     input_sentence = Input(shape=(n,), dtype='int32')
+    print(f"Data type of input_sentence: {input_sentence.dtype}") # Debug print: Check input_sentence dtype
+    
+    # One-hot encode the input
     input_vec = Embedding(16, hidden_dim)(input_sentence)
     h = GCNN(residual=True)(input_vec)
     h = GCNN(residual=True)(h)
     h = GlobalAveragePooling1D()(h)
 
-    z_mean = Dense(latent_dim)(h)
-    z_log_var = Dense(latent_dim)(h)
+    z_mean = Dense(latent_dim, name='z_mean')(h)
+    z_log_var = Dense(latent_dim, name='z_log_var')(h)
 
     def sampling(args):
         z_mean, z_log_var = args
-        epsilon = K.random_normal(shape=(K.shape(z_mean)[0], latent_dim), mean=0, stddev=1)
-        return z_mean + K.exp(z_log_var / 2) * epsilon
+        epsilon = tf.keras.backend.random_normal(shape=(tf.keras.backend.shape(z_mean)[0], latent_dim), mean=0, stddev=1) # Use tf.keras.backend
+        return z_mean + tf.keras.backend.exp(z_log_var / 2) * epsilon # Use tf.keras.backend
 
-    z = Lambda(sampling)([z_mean, z_log_var])
+    z = Lambda(sampling, output_shape=(latent_dim,))([z_mean, z_log_var])
 
     decoder_hidden = Dense(hidden_dim * n)
     decoder_cnn = GCNN(residual=True)
@@ -119,14 +129,26 @@ def run_model():
     h = decoder_cnn(h)
     output = decoder_dense(h)
 
+    class VAE_Loss(Layer): # define a custom layer to calculate the loss
+      def __init__(self, **kwargs):
+        super(VAE_Loss, self).__init__(**kwargs)
+
+      def call(self, inputs):
+        y_true, y_pred, z_mean_loss, z_log_var_loss = inputs # unpack the inputs
+        tmp = tf.keras.losses.sparse_categorical_crossentropy(y_true, y_pred)
+        xent_loss = tf.reduce_sum(tmp, axis=-1)
+        kl_loss = - 0.5 * tf.reduce_sum(1 + z_log_var_loss - tf.keras.backend.square(z_mean_loss) - tf.keras.backend.exp(z_log_var_loss), axis=-1)
+        loss = tf.reduce_mean(xent_loss + kl_loss)
+        self.add_loss(loss) # add the loss to the model
+        return y_pred # pass the prediction along to the next layer
+
+
+    output = VAE_Loss()([input_sentence, output, z_mean, z_log_var]) # pass the necessary tensors to the loss layer
+
+
     vae = Model(input_sentence, output)
-
-    xent_loss = K.sum(K.sparse_categorical_crossentropy(input_sentence, output), 1)
-    kl_loss = - 0.5 * K.sum(1 + z_log_var - K.square(z_mean) - K.exp(z_log_var), axis=-1)
-    vae_loss = K.mean(xent_loss + kl_loss)
-
-    vae.add_loss(vae_loss)
-    vae.compile(optimizer='adam')
+    vae.compile(optimizer='adam') # compile the model, the loss is now handled by the custom layer
+    
     vae.summary()
 
     decoder_input = Input(shape=(latent_dim,))
@@ -147,10 +169,14 @@ def run_model():
             self.log = []
 
         def on_epoch_end(self, epoch, logs=None):
-            self.log.append(gen())
+            generated_output_tokens = gen() # Get the generated output (NumPy array)
+            self.log.append(generated_output_tokens)
+
+            print(f"Type of generated_output_tokens in Evaluate: {type(generated_output_tokens)}") # Debug print
+
             gen_address = ""
             count = 0
-            gen_address_list = [str(hex(i))[-1] for i in self.log[-1]]
+            gen_address_list = [str(hex(i))[-1] for i in generated_output_tokens] # Use generated_output_tokens
             for i in gen_address_list:
                 count += 1
                 gen_address += i
@@ -158,11 +184,14 @@ def run_model():
                     gen_address += ":"
             gen_address = gen_address[:-1]
             print(gen_address)
-            # print(u'          %s'%(self.log[-1]))
+
 
     evaluator = Evaluate()
 
+    # Create target data by shifting x_train by one
+    x_train_target = np.concatenate((x_train[:,1:], np.zeros((x_train.shape[0],1), dtype='int32')), axis=1)
     vae.fit(x_train,
+            x_train_target, # use the target data here
             shuffle=True,
             epochs=3,
             batch_size=64,
@@ -173,12 +202,13 @@ def run_model():
 
     for i in range(20):
         r = gen()
+        print(f"Type of r in final generation loop: {type(r)}") # Debug print
         gen_address = ""
         count = 0
-        gen_address_list = [str(hex(i))[-1] for i in r]
-        for i in gen_address_list:
+        gen_address_list = [str(hex(val))[-1] for val in r] # Use r here
+        for val in gen_address_list:
             count += 1
-            gen_address += i
+            gen_address += val
             if count % 4 == 0:
                 gen_address += ":"
         gen_address = gen_address[:-1]
@@ -186,5 +216,4 @@ def run_model():
 
 
 if __name__ == "__main__":
-
     run_model()
