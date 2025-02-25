@@ -4,6 +4,8 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import *
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Layer # corrected import
+import tensorflow as tf
+from tensorflow.keras.layers import Conv1D # corrected import
 
 model_dir = "models/"
 generation_dir = 'data/generated_data/'
