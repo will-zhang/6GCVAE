@@ -1,7 +1,8 @@
 import numpy as np
 from keras.models import Model
 from keras.layers import *
-from keras import backend as K
+#from keras import backend as K
+from tensorflow.keras import backend as K
 #from keras.engine.topology import Layer
 import tensorflow as tf
 from tensorflow.keras.layers import Layer
@@ -86,7 +87,7 @@ def run_model():
             print("input", x)
             print("conv", _)
             print("output_dim", self.output_dim)
-            _ = _[:, :, :self.output_dim] * K.sigmoid(_[:, :, self.output_dim:])
+            _ = _[:, :, :self.output_dim] * tf.sigmoid(_[:, :, self.output_dim:])
             print("output", _)
             if self.residual:
                 return _ + x
