@@ -11,7 +11,7 @@ from tensorflow.keras.layers import Conv1D # corrected import
 model_dir = "models/"
 generation_dir = 'data/generated_data/'
 
-generation_number = 1000
+generation_number = 10000
 
 n = 32
 latent_dim = 64
