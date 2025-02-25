@@ -22,7 +22,7 @@ hidden_dim = 64
 def load_data(filename):
 
     f = open(filename, 'r', encoding='utf-8')
-    raw_data = f.readlines()
+    raw_data = f.readlines()[:100000]
     f.close()
 
     # 去除末尾换行符
