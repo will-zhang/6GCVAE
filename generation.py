@@ -1,9 +1,9 @@
-import keras
-from keras.models import load_model
-from keras.models import Model
-from keras.layers import *
-from keras import backend as K
-from keras.engine.topology import Layer
+import tensorflow.keras
+from tensorflow.keras.models import load_model
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import *
+from tensorflow.keras import backend as K
+from tensorflow.keras.layers import Layer # corrected import
 
 model_dir = "models/"
 generation_dir = 'data/generated_data/'
@@ -22,19 +22,28 @@ def rebuild_model(model_path):
             super(GCNN, self).__init__(**kwargs)
             self.output_dim = output_dim
             self.residual = residual
+            self.conv1d = None # Initialize conv1d layer
 
         def build(self, input_shape):
             if self.output_dim == None:
                 self.output_dim = input_shape[-1]
-            self.kernel = self.add_weight(name='gcnn_kernel',
-                                          shape=(3, input_shape[-1],
-                                                 self.output_dim * 2),
-                                          initializer='glorot_uniform',
-                                          trainable=True)
+            # Use Conv1D Layer
+            self.conv1d = Conv1D(
+                filters=self.output_dim * 2,
+                kernel_size=3,
+                padding='same',
+                kernel_initializer='glorot_uniform',
+                name='gcnn_conv1d'
+            )
+            self.built = True
 
         def call(self, x):
-            _ = K.conv1d(x, self.kernel, padding='same')
-            _ = _[:, :, :self.output_dim] * K.sigmoid(_[:, :, self.output_dim:])
+            _ = self.conv1d(x)
+            print("input", x)
+            print("conv", _)
+            print("output_dim", self.output_dim)
+            _ = _[:, :, :self.output_dim] * tf.nn.sigmoid(_[:, :, self.output_dim:]) # Use tf.nn.sigmoid
+            print("output", _)
             if self.residual:
                 return _ + x
             else:
@@ -93,7 +102,7 @@ def gen():
 if __name__ == "__main__":
 
     model_list = [
-        "gcnn_vae.model"
+        "gcnn_vae.model.weights.h5"
         # "fixed_iid_100.model",
         # "low_64bit_subnet_100.model",
         # "slaac_eui64_100.model",
@@ -101,7 +110,7 @@ if __name__ == "__main__":
     ]
 
     generation_filename_list = [
-        "6gcvae_generation.txt"
+        "6gcvae_generation_test.txt"
         # 'gcnn_vae_generation_fixed_iid_addresses_100_1M.txt',
         # 'gcnn_vae_generation_low_64bit_subnet_addresses_100_1M.txt',
         # 'gcnn_vae_generation_slaac_eui64_addresses_100_1M.txt',
